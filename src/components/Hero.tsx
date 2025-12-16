@@ -1148,27 +1148,6 @@ export default function Hero() {
           <AdvancedOptions options={options} onChange={setOptions} />
         </motion.div>
 
-        {/* Features */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.6, delay: 0.6 }}
-          className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-8"
-        >
-          {[
-            { title: 'Multi-Image Input', desc: 'Upload multiple reference images' },
-            { title: 'Format Options', desc: 'PNG, JPEG, or WebP conversion' },
-            { title: 'Image Editing', desc: 'Transform images with AI' },
-          ].map((feature, i) => (
-            <div
-              key={i}
-              className="glass rounded-xl p-4 border border-border/30 hover:border-primary/30 transition-colors"
-            >
-              <h3 className="font-semibold text-foreground mb-1">{feature.title}</h3>
-              <p className="text-sm text-muted-foreground">{feature.desc}</p>
-            </div>
-          ))}
-        </motion.div>
       </motion.div>
     </div>
   );
