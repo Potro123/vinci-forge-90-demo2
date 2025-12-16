@@ -411,58 +411,88 @@ export default function Gallery() {
       const url = scene.videoUrl || scene.imageUrl;
       if (!url) return;
       
+      toast.success('Download started');
+      
       const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
       const blob = await response.blob();
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
       link.download = `${scene.title.replace(/\s+/g, '-')}.${scene.type === 'video' ? 'mp4' : 'png'}`;
+      link.style.display = 'none';
       document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(link.href);
-      toast.success('Download started');
+      
+      // Clean up after a short delay to ensure download starts
+      setTimeout(() => {
+        document.body.removeChild(link);
+        URL.revokeObjectURL(link.href);
+      }, 100);
     } catch (error) {
       console.error('Download failed:', error);
-      toast.error('Failed to download file');
+      toast.error('Failed to download file. Please try again.');
     }
   };
 
   const handleDownload = async (job: Job) => {
     try {
       const url = job.outputs[0];
+      toast.success('Download started');
+      
       const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
       const blob = await response.blob();
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
       const extension = job.options.type === 'video' ? 'mp4' : (job.options.type === '3d' || job.options.type === 'cad') ? 'glb' : 'png';
       link.download = `${job.options.type}-${job.id.slice(0, 8)}.${extension}`;
+      link.style.display = 'none';
       document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(link.href);
-      toast.success('Download started');
+      
+      // Clean up after a short delay to ensure download starts
+      setTimeout(() => {
+        document.body.removeChild(link);
+        URL.revokeObjectURL(link.href);
+      }, 100);
     } catch (error) {
       console.error('Download failed:', error);
-      toast.error('Failed to download file');
+      toast.error('Failed to download file. Please try again.');
     }
   };
 
   const handleUnityExport = async (job: Job) => {
     try {
       const url = job.outputs[0];
+      toast.success('Unity GLB export started');
+      
       const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
       const blob = await response.blob();
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
       link.download = `unity_model_${job.id.slice(0, 8)}.glb`;
+      link.style.display = 'none';
       document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(link.href);
-      toast.success('Unity GLB exported');
+      
+      // Clean up after a short delay to ensure download starts
+      setTimeout(() => {
+        document.body.removeChild(link);
+        URL.revokeObjectURL(link.href);
+      }, 100);
     } catch (error) {
       console.error('Export failed:', error);
-      toast.error('Failed to export for Unity');
+      toast.error('Failed to export for Unity. Please try again.');
     }
   };
 

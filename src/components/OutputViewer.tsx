@@ -432,25 +432,36 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
       const index = job.options.type === 'video' ? currentVideoIndex : currentImageIndex;
       // Always download the original full-quality file
       const url = getDownloadUrl(index);
+      
+      toast({
+        title: "Download Started",
+        description: "Downloading original file at full resolution",
+      });
+
       const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
       const blob = await response.blob();
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
       const extension = job.options.type === 'video' ? 'mp4' : (job.options.type === '3d' || job.options.type === 'cad') ? 'glb' : 'png';
       link.download = `${job.options.type}-${job.id.slice(0, 8)}-${index + 1}.${extension}`;
+      link.style.display = 'none';
       document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(link.href);
-      toast({
-        title: "Full Quality Download",
-        description: "Downloading original file at full resolution",
-      });
+      
+      // Clean up after a short delay to ensure download starts
+      setTimeout(() => {
+        document.body.removeChild(link);
+        URL.revokeObjectURL(link.href);
+      }, 100);
     } catch (error) {
       console.error('Download failed:', error);
       toast({
-        title: "Download failed",
-        description: "Could not download file",
+        title: "Download Failed",
+        description: error instanceof Error ? error.message : "Could not download file. Please try again.",
         variant: "destructive",
       });
     }
