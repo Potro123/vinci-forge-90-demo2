@@ -203,10 +203,10 @@ export default function Hero() {
         return;
       }
 
-      if (file.size > 10 * 1024 * 1024) {
+      if (file.size > 1024 * 1024 * 1024) {
         toast({
           title: "File too large",
-          description: `${file.name} exceeds 10MB limit`,
+          description: `${file.name} exceeds 1GB limit`,
           variant: "destructive",
         });
         return;
@@ -259,14 +259,14 @@ export default function Hero() {
       return;
     }
 
-    // Check total size (50MB limit for larger folders)
+    // Check total size (1GB limit for larger folders)
     const totalSize = folderImages.reduce((acc, file) => acc + file.size, 0);
-    const maxSize = 50 * 1024 * 1024; // 50MB to support 120+ images
+    const maxSize = 1024 * 1024 * 1024; // 1GB to support large folders
     
     if (totalSize > maxSize) {
       toast({
         title: "Folder too large",
-        description: `Total size ${(totalSize / 1024 / 1024).toFixed(2)}MB exceeds 50MB limit`,
+        description: `Total size ${(totalSize / 1024 / 1024).toFixed(2)}MB exceeds 1GB limit`,
         variant: "destructive",
       });
       return;
@@ -408,10 +408,10 @@ export default function Hero() {
       return;
     }
 
-    if (file.size > 10 * 1024 * 1024) {
+    if (file.size > 1024 * 1024 * 1024) {
       toast({
         title: "File too large",
-        description: "Image exceeds 10MB limit",
+        description: "Image exceeds 1GB limit",
         variant: "destructive",
       });
       return;
