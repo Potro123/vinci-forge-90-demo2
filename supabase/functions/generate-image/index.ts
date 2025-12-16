@@ -110,13 +110,21 @@ serve(async (req) => {
       );
     }
 
-    console.log('Generating image with Lovable AI:', { prompt, width, height, numImages });
+    console.log('Generating image with Lovable AI:', { prompt, width, height, numImages, hasReference: !!referenceImageUrl });
 
     // Enhance prompt for high quality image generation
-    const imagePrompt = `Generate a high-quality, detailed, sharp image of: ${prompt}. Ultra high resolution, 4K quality, highly detailed.`;
+    // If reference image is provided, instruct AI to use it as inspiration/reference
+    const imagePrompt = referenceImageUrl
+      ? `IMPORTANT: Analyze the provided reference image carefully and create a new image that ${prompt}. You must closely replicate the visual style, composition, subject matter, colors, lighting, textures, and artistic details from the reference image. Match every aspect: the pose, expression, background, color palette, lighting direction, and overall aesthetic. Create a faithful, high-quality reproduction. Ultra high resolution, 4K quality, photorealistic, highly detailed.`
+      : `Generate a high-quality, detailed, sharp image of: ${prompt}. Ultra high resolution, 4K quality, highly detailed.`;
 
     // Define fallback models in order of preference (cost-effective to powerful)
-    const imageModels = [
+    // When reference image is provided, use models that support image understanding
+    const imageModels = referenceImageUrl ? [
+      'google/gemini-2.0-flash-exp',       // Best for image-to-image with reference
+      'google/gemini-2.5-flash',           // Good image understanding
+      'google/gemini-1.5-flash',           // Fallback with vision support
+    ] : [
       'google/gemini-2.5-flash-image',     // Most cost-effective (~$0.01/image)
       'google/gemini-2.5-flash-lite',      // Fallback option 1
       'google/gemini-2.5-flash',           // Fallback option 2
