@@ -337,7 +337,7 @@ export function JobProvider({ children }: { children: ReactNode }) {
           return;
         }
 
-        if (data) {
+        if (data !== null) {
           const jobsWithDates: Job[] = data.map((dbJob: any) => ({
             id: dbJob.id,
             options: {
@@ -403,6 +403,11 @@ export function JobProvider({ children }: { children: ReactNode }) {
           const totalJobs = count || 0;
           const loadedJobs = reset ? jobsWithDates.length : jobs.length + jobsWithDates.length;
           setHasMoreJobs(loadedJobs < totalJobs);
+          
+          // If no jobs at all, explicitly set hasMoreJobs to false
+          if (totalJobs === 0) {
+            setHasMoreJobs(false);
+          }
 
           // Check for timed out jobs immediately after loading
           await checkAndTimeoutJobs(jobsWithDates);
@@ -814,7 +819,7 @@ export function JobProvider({ children }: { children: ReactNode }) {
   }, [jobs]);
 
   const loadMoreJobs = useCallback(async () => {
-    if (isLoadingMore || !hasMoreJobs) return;
+    if (isLoadingMore || !hasMoreJobs || !user?.id) return;
     
     setIsLoadingMore(true);
     try {
@@ -823,57 +828,66 @@ export function JobProvider({ children }: { children: ReactNode }) {
       const { data, error, count } = await supabase
         .from('jobs')
         .select('*', { count: 'exact' })
-        .eq('user_id', user?.id)
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .range(offset, offset + JOBS_PER_PAGE - 1);
 
       if (error) {
         console.error('Failed to load more jobs:', error);
-        toast.error('Failed to load more jobs');
+        // Only show error toast if it's not a "no data" scenario
+        if (error.code !== 'PGRST116') {
+          toast.error('Failed to load more jobs');
+        }
+        setHasMoreJobs(false);
         return;
       }
 
-      if (data && data.length > 0) {
-        const jobsWithDates: Job[] = data.map((dbJob: any) => ({
-          id: dbJob.id,
-          options: {
-            prompt: dbJob.prompt,
-            negativePrompt: dbJob.negative_prompt,
-            type: dbJob.type,
-            width: dbJob.width,
-            height: dbJob.height,
-            duration: dbJob.duration,
-            fps: dbJob.fps,
-            videoMode: dbJob.video_mode,
-            threeDMode: dbJob.three_d_mode,
-            seed: dbJob.seed,
-            steps: dbJob.steps,
-            cfgScale: dbJob.cfg_scale,
-            numImages: dbJob.num_images,
-          },
-          status: dbJob.status,
-          progress: {
-            stage: dbJob.progress_stage,
-            progress: dbJob.progress_percent,
-            currentStep: dbJob.current_step,
-            totalSteps: dbJob.total_steps,
-            eta: dbJob.eta,
-            message: dbJob.progress_message,
-          },
-          outputs: dbJob.outputs || [],
-          manifest: dbJob.manifest,
-          createdAt: new Date(dbJob.created_at),
-          startedAt: dbJob.started_at ? new Date(dbJob.started_at) : undefined,
-          completedAt: dbJob.completed_at ? new Date(dbJob.completed_at) : undefined,
-          error: dbJob.error,
-        }));
-        
-        setJobs(prev => [...prev, ...jobsWithDates]);
-        setCurrentPage(prev => prev + 1);
-        
-        const totalJobs = count || 0;
-        const loadedJobs = jobs.length + jobsWithDates.length;
-        setHasMoreJobs(loadedJobs < totalJobs);
+      if (data !== null) {
+        if (data.length > 0) {
+          const jobsWithDates: Job[] = data.map((dbJob: any) => ({
+            id: dbJob.id,
+            options: {
+              prompt: dbJob.prompt,
+              negativePrompt: dbJob.negative_prompt,
+              type: dbJob.type,
+              width: dbJob.width,
+              height: dbJob.height,
+              duration: dbJob.duration,
+              fps: dbJob.fps,
+              videoMode: dbJob.video_mode,
+              threeDMode: dbJob.three_d_mode,
+              seed: dbJob.seed,
+              steps: dbJob.steps,
+              cfgScale: dbJob.cfg_scale,
+              numImages: dbJob.num_images,
+            },
+            status: dbJob.status,
+            progress: {
+              stage: dbJob.progress_stage,
+              progress: dbJob.progress_percent,
+              currentStep: dbJob.current_step,
+              totalSteps: dbJob.total_steps,
+              eta: dbJob.eta,
+              message: dbJob.progress_message,
+            },
+            outputs: dbJob.outputs || [],
+            manifest: dbJob.manifest,
+            createdAt: new Date(dbJob.created_at),
+            startedAt: dbJob.started_at ? new Date(dbJob.started_at) : undefined,
+            completedAt: dbJob.completed_at ? new Date(dbJob.completed_at) : undefined,
+            error: dbJob.error,
+          }));
+          
+          setJobs(prev => [...prev, ...jobsWithDates]);
+          setCurrentPage(prev => prev + 1);
+          
+          const totalJobs = count || 0;
+          const loadedJobs = jobs.length + jobsWithDates.length;
+          setHasMoreJobs(loadedJobs < totalJobs);
+        } else {
+          // No more data to load
+          setHasMoreJobs(false);
+        }
       }
     } finally {
       setIsLoadingMore(false);

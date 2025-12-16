@@ -155,10 +155,12 @@ export default function Gallery() {
   // Auto-load more jobs if needed to fill pages
   useEffect(() => {
     const totalNeeded = currentPage * ITEMS_PER_PAGE;
-    if (sortedJobs.length < totalNeeded && hasMoreJobs && !isLoadingMore) {
+    // Only auto-load if we have some jobs already or if it's the first load
+    const shouldLoad = sortedJobs.length < totalNeeded && hasMoreJobs && !isLoadingMore && !loadError;
+    if (shouldLoad) {
       loadMoreJobs();
     }
-  }, [currentPage, sortedJobs.length, hasMoreJobs, isLoadingMore]);
+  }, [currentPage, sortedJobs.length, hasMoreJobs, isLoadingMore, loadError]);
 
   // Reset to page 1 when filters change
   useEffect(() => {
