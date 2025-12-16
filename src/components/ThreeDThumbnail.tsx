@@ -80,27 +80,38 @@ function Model({ url, unityTransform, isUnityModel }: { url: string; unityTransf
   return <primitive object={gltf.scene} scale={1} />;
 }
 
-function PosterCapture({ onCapture }: { onCapture: (dataUrl: string) => void }) {
-  const { gl, scene } = useThree();
+function PosterCapture({ onCapture, isUnityModel }: { onCapture: (dataUrl: string) => void; isUnityModel?: boolean }) {
+  const { gl, scene, camera } = useThree();
   
   useEffect(() => {
-    // Wait longer to ensure model is fully loaded and rendered
+    // Unity models need more time to render the grid and complex scene
+    const captureDelay = isUnityModel ? 1000 : 500;
+    
     const timer = setTimeout(() => {
       try {
         // Check if scene has children (model is loaded)
         if (scene.children.length > 0) {
+          console.log(`Capturing poster for ${isUnityModel ? 'Unity' : 'regular'} model, scene children:`, scene.children.length);
+          
+          // Force a render before capturing
+          gl.render(scene, camera);
+          
           const dataUrl = gl.domElement.toDataURL('image/png');
-          onCapture(dataUrl);
+          if (dataUrl && dataUrl.length > 100) {
+            onCapture(dataUrl);
+          } else {
+            console.warn('Captured poster seems empty or invalid');
+          }
         } else {
-          console.warn('Scene not ready for poster capture');
+          console.warn('Scene not ready for poster capture, children:', scene.children.length);
         }
       } catch (error) {
         console.error('Failed to capture poster:', error);
       }
-    }, 500); // Increased delay to ensure model is rendered
+    }, captureDelay);
     
     return () => clearTimeout(timer);
-  }, [gl, scene, onCapture]);
+  }, [gl, scene, camera, onCapture, isUnityModel]);
   
   return null;
 }
@@ -120,6 +131,9 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId, unityTransfor
 
   const retryCount = useRef(0);
   const maxRetries = 2;
+  
+  // Use cached poster or newly captured poster
+  const displayPosterUrl = posterUrl || cachedPosterUrl;
 
   // Intersection observer to only render when visible
   useEffect(() => {
@@ -149,9 +163,11 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId, unityTransfor
       try {
         const cached = await posterCache.get(cacheKey);
         if (cached) {
-          console.log('Loaded cached poster from IndexedDB for', jobId || normalizedUrl);
+          console.log(`✅ Loaded cached poster from IndexedDB for ${isUnityModel ? 'Unity' : 'CAD'} model:`, jobId || normalizedUrl);
           setCachedPosterUrl(cached);
           setIsLoading(false);
+        } else {
+          console.log(`❌ No cached poster found for ${isUnityModel ? 'Unity' : 'CAD'} model:`, jobId || normalizedUrl);
         }
       } catch (error) {
         console.error('Failed to load cached poster:', error);
@@ -159,7 +175,7 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId, unityTransfor
     };
 
     loadCachedPoster();
-  }, [cacheKey, jobId, normalizedUrl]);
+  }, [cacheKey, jobId, normalizedUrl, isUnityModel]);
 
   const handleModelError = () => {
     retryCount.current += 1;
@@ -180,7 +196,8 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId, unityTransfor
   };
 
   const handlePosterCapture = async (dataUrl: string) => {
-    console.log('Poster captured for', jobId || normalizedUrl);
+    console.log(`🎨 Poster captured for ${isUnityModel ? 'Unity' : 'CAD'} model:`, jobId || normalizedUrl);
+    console.log('Poster data URL length:', dataUrl.length);
     setPosterUrl(dataUrl);
     setIsLoading(false);
     
@@ -189,6 +206,7 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId, unityTransfor
       try {
         await posterCache.set(cacheKey, dataUrl, normalizedUrl);
         setCachedPosterUrl(dataUrl);
+        console.log('✅ Poster saved to cache');
         
         // Trigger cleanup to maintain reasonable cache size
         posterCache.cleanup(50).catch(err => 
@@ -202,15 +220,17 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId, unityTransfor
 
   // Fallback: if poster capture takes too long, stop showing loading state
   useEffect(() => {
-    if (isLoading && isInView && activeUrl) {
+    if (isLoading && isInView && activeUrl && !displayPosterUrl) {
+      // Give Unity models more time (they need 1s for capture + loading time)
+      const timeoutDuration = isUnityModel ? 5000 : 3000;
       const fallbackTimer = setTimeout(() => {
         console.log('Poster capture timeout, showing live canvas');
         setIsLoading(false);
-      }, 3000); // 3 second timeout
+      }, timeoutDuration);
       
       return () => clearTimeout(fallbackTimer);
     }
-  }, [isLoading, isInView, activeUrl]);
+  }, [isLoading, isInView, activeUrl, displayPosterUrl, isUnityModel]);
 
   // Try to construct Supabase storage URL for models - with pre-flight validation
   useEffect(() => {
@@ -354,19 +374,18 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId, unityTransfor
   return (
     <div className="w-full h-full bg-card relative" ref={canvasRef}>
       {/* Show loading overlay only when actively loading */}
-      {isLoading && isInView && !posterUrl && !cachedPosterUrl && (
+      {isLoading && isInView && !displayPosterUrl && (
         <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
           <Loader2 className="w-8 h-8 text-primary animate-spin" />
         </div>
       )}
       
       {/* Render Canvas when in view and we have a valid URL */}
-      {!loadError && isInView && activeUrl && (
+      {!loadError && isInView && activeUrl && !displayPosterUrl && (
         <Canvas
           key={canvasKey}
           camera={{ position: [0, 0, 3], fov: 50 }}
           className="w-full h-full"
-          style={{ display: posterUrl ? 'none' : 'block' }}
           dpr={[1, 1]}
           frameloop="always"
           gl={{ 
@@ -439,16 +458,16 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId, unityTransfor
                   </PresentationControls>
                 </>
               )}
-              {!posterUrl && <PosterCapture onCapture={handlePosterCapture} />}
+              {!displayPosterUrl && <PosterCapture onCapture={handlePosterCapture} isUnityModel={isUnityModel} />}
             </ModelErrorBoundary>
           </Suspense>
         </Canvas>
       )}
       
-      {/* Show static poster if we have it */}
-      {posterUrl && (
+      {/* Show static poster if we have it (either cached or newly captured) */}
+      {displayPosterUrl && (
         <img 
-          src={posterUrl} 
+          src={displayPosterUrl} 
           alt="Model preview" 
           className="w-full h-full object-cover"
         />
