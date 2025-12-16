@@ -302,6 +302,19 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId, unityTransfor
     };
   }, [posterUrl]);
 
+  // If we have a cached poster, show it immediately even if URL is still validating
+  if (cachedPosterUrl) {
+    return (
+      <div className="w-full h-full bg-card relative" ref={canvasRef}>
+        <img 
+          src={cachedPosterUrl} 
+          alt="Model preview" 
+          className="w-full h-full object-cover"
+        />
+      </div>
+    );
+  }
+
   // If no valid URL, error, or still validating, show fallback
   if (!isUrlValidated || !activeUrl || loadError) {
     return (
@@ -322,17 +335,8 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId, unityTransfor
 
   return (
     <div className="w-full h-full bg-card relative" ref={canvasRef}>
-      {/* Show cached poster - no live Canvas needed for thumbnails */}
-      {cachedPosterUrl && (
-        <img 
-          src={cachedPosterUrl} 
-          alt="Model preview" 
-          className="w-full h-full object-cover"
-        />
-      )}
-      
-      {/* If no cached poster, try to generate one with a SINGLE render */}
-      {!cachedPosterUrl && !posterUrl && !loadError && isInView && (
+      {/* If no poster yet, try to generate one with a SINGLE render */}
+      {!posterUrl && !loadError && isInView && (
         <>
           {isLoading && (
             <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
@@ -423,7 +427,7 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId, unityTransfor
       )}
       
       {/* Show static poster if we have it */}
-      {posterUrl && !cachedPosterUrl && (
+      {posterUrl && (
         <img 
           src={posterUrl} 
           alt="Model preview" 
