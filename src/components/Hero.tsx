@@ -86,7 +86,7 @@ export default function Hero() {
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imageFormat, setImageFormat] = useState<'png' | 'jpeg' | 'webp'>('png');
-  const [imageMode, setImageMode] = useState<'edit' | 'reference'>('reference');
+  const [imageMode, setImageMode] = useState<'edit' | 'reference' | 'upscale'>('upscale');
   const [startFrameImage, setStartFrameImage] = useState<string>('');
   const [endFrameImage, setEndFrameImage] = useState<string>('');
   const [showFrameToFrame, setShowFrameToFrame] = useState(false);
@@ -666,7 +666,9 @@ export default function Hero() {
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 placeholder={uploadedImages.length > 0 && options.type === 'image' 
-                  ? (imageMode === 'edit' 
+                  ? (imageMode === 'upscale'
+                      ? "Optional: Add specific details to enhance (or leave empty for perfect copy)..."
+                      : imageMode === 'edit' 
                       ? "Describe the changes you want to make to the images..." 
                       : "Describe what you want to create using this image as reference...")
                   : "A futuristic cityscape at sunset with flying cars..."}
@@ -743,11 +745,12 @@ export default function Hero() {
                 {uploadedImages.length > 0 && options.type === 'image' && (
                   <select
                     value={imageMode}
-                    onChange={(e) => setImageMode(e.target.value as 'edit' | 'reference')}
+                    onChange={(e) => setImageMode(e.target.value as 'edit' | 'reference' | 'upscale')}
                     className="h-9 px-3 rounded-md border border-input bg-background text-sm"
                   >
-                    <option value="reference">Use as Reference</option>
-                    <option value="edit">Edit Image</option>
+                    <option value="upscale">🔍 Upscale/Enhance (Perfect Copy)</option>
+                    <option value="reference">🎨 Use as Reference (Inspired)</option>
+                    <option value="edit">✨ Edit Image (Modify)</option>
                   </select>
                 )}
                 
@@ -767,7 +770,9 @@ export default function Hero() {
               
               {uploadedImages.length > 0 && options.type === 'image' && (
                 <span className="text-sm text-muted-foreground">
-                  {imageMode === 'edit' 
+                  {imageMode === 'upscale' 
+                    ? '🔍 Upscale mode: AI will create a perfect high-resolution copy of your image'
+                    : imageMode === 'edit' 
                     ? '✨ Edit mode: Your images will be modified based on your prompt'
                     : '🎨 Reference mode: AI will create new images inspired by your reference'}
                 </span>

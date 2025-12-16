@@ -43,7 +43,7 @@ export interface GenerationOptions {
   imageUrl?: string; // For image-to-X generation (primary image)
   imageUrls?: string[]; // For multiple image inputs
   imageFormat?: 'png' | 'jpeg' | 'webp'; // Target format for uploaded images
-  imageMode?: 'edit' | 'reference'; // Whether to edit the image or use it as reference
+  imageMode?: 'edit' | 'reference' | 'upscale'; // Whether to edit, use as reference, or upscale/enhance the image
 }
 
 export interface JobManifest {

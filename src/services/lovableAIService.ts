@@ -523,8 +523,43 @@ class LovableAIService {
     console.log('LovableAI: Starting image generation/editing for', jobId);
 
     try {
-      // Check if this is an image-to-image edit operation (explicit edit mode)
-      if (job.options.imageUrl && job.options.imageMode === 'edit') {
+      // Check if this is an upscale/enhance operation
+      if (job.options.imageUrl && job.options.imageMode === 'upscale') {
+        console.log('LovableAI: Using upscale/enhance mode for', jobId);
+        this.updateJobStage(jobId, 'running', 'Creating high-resolution copy...');
+        
+        // Use generate-image with the image as reference and a specific upscale prompt
+        const upscalePrompt = job.options.prompt || 'Create a perfect high-resolution copy of this image, preserving every detail, color, texture, and composition exactly as shown.';
+        
+        const { data, error } = await supabase.functions.invoke('generate-image', {
+          body: {
+            prompt: upscalePrompt,
+            referenceImageUrl: job.options.imageUrl,
+            width: job.options.width || 1920,
+            height: job.options.height || 1080,
+            numOutputs: job.options.numOutputs || 1,
+            guidanceScale: job.options.cfgScale || 7.5,
+            numInferenceSteps: job.options.steps || 20,
+          }
+        });
+
+        console.log('LovableAI: Upscale response:', { data, error });
+
+        if (error) {
+          console.error('LovableAI: Upscale error:', error);
+          throw new Error((error as Error).message || 'Failed to upscale image');
+        }
+
+        if (!data || !data.imageUrls || data.imageUrls.length === 0) {
+          console.error('LovableAI: No upscaled images in response:', data);
+          throw new Error('No upscaled images generated');
+        }
+
+        console.log('LovableAI: Image upscaled successfully for', jobId);
+        this.completeJob(jobId, data.imageUrls);
+        
+      } else if (job.options.imageUrl && job.options.imageMode === 'edit') {
+        // Image-to-image edit operation (explicit edit mode)
         console.log('LovableAI: Using image-to-image editing for', jobId);
         this.updateJobStage(jobId, 'running', 'Editing image with AI...');
         
