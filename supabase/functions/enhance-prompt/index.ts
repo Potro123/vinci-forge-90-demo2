@@ -160,45 +160,60 @@ CRITICAL: Never remove dimensions, materials, or technical specifications. Focus
 
     const systemPrompt = systemPrompts[type as string] || systemPrompts.image;
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          {
-            role: "system",
-            content: systemPrompt
-          },
-          {
-            role: "user",
-            content: `Enhance this ${type} generation prompt: "${idea}"\n\nProvide ONLY the enhanced prompt, nothing else. No explanations or additional text.`
-          }
-        ],
-      }),
-    });
+    // Try multiple models for better reliability
+    const models = [
+      "google/gemini-2.0-flash-exp:free",
+      "google/gemini-flash-1.5",
+      "meta-llama/llama-3.1-8b-instruct:free"
+    ];
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Lovable AI error:", response.status, errorText);
-      
-      if (response.status === 429) {
-        return new Response(
-          JSON.stringify({ error: "Rate limits exceeded, please try again later." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+    let response;
+    let lastError;
+
+    for (const model of models) {
+      try {
+        console.log(`Trying model: ${model}`);
+        response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${LOVABLE_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: model,
+            messages: [
+              {
+                role: "system",
+                content: systemPrompt
+              },
+              {
+                role: "user",
+                content: `Enhance this ${type} generation prompt: "${idea}"\n\nProvide ONLY the enhanced prompt, nothing else. No explanations or additional text.`
+              }
+            ],
+          }),
+        });
+
+        if (response.ok) {
+          console.log(`Successfully used model: ${model}`);
+          break;
+        } else {
+          const errorText = await response.text();
+          console.warn(`Model ${model} failed:`, response.status, errorText);
+          lastError = errorText;
+        }
+      } catch (error) {
+        console.warn(`Model ${model} error:`, error);
+        lastError = error;
       }
-      if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: "Payment required, please add funds to your Lovable AI workspace." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      
-      throw new Error("Failed to enhance prompt");
+    }
+
+    if (!response || !response.ok) {
+      console.error("All models failed. Last error:", lastError);
+      return new Response(
+        JSON.stringify({ error: "AI service temporarily unavailable. Please try again in a moment." }),
+        { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     const data = await response.json();

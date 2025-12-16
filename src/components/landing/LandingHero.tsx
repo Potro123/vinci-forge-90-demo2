@@ -77,43 +77,6 @@ export function LandingHero() {
             </Button>
           </motion.div>
         </motion.div>
-
-        {/* Floating 3D Models Preview */}
-        <motion.div
-          initial={{ opacity: 0, y: 50 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.6 }}
-          className="mt-16 relative"
-        >
-          <div className="flex justify-center items-end gap-4 md:gap-6 flex-wrap">
-            {/* Model cards */}
-            {[
-              { color: 'from-purple-500 to-blue-500', title: 'Film Production', delay: 0 },
-              { color: 'from-cyan-500 to-teal-500', title: 'Product Design', delay: 0.1 },
-              { color: 'from-yellow-500 to-orange-500', title: 'Education', delay: 0.2 },
-              { color: 'from-green-500 to-emerald-500', title: 'Game Dev', delay: 0.3 },
-              { color: 'from-pink-500 to-rose-500', title: '3D Printing', delay: 0.4 },
-              { color: 'from-indigo-500 to-purple-500', title: 'VR/AR', delay: 0.5 },
-              { color: 'from-amber-500 to-yellow-500', title: 'Interior Design', delay: 0.6 },
-            ].map((item, index) => (
-              <motion.div
-                key={item.title}
-                initial={{ opacity: 0, y: 30 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.7 + item.delay }}
-                whileHover={{ y: -10, scale: 1.05 }}
-                className="group cursor-pointer"
-              >
-                <div className={`w-20 h-20 md:w-24 md:h-24 rounded-2xl bg-gradient-to-br ${item.color} flex items-center justify-center shadow-lg group-hover:shadow-xl transition-all`}>
-                  <div className="w-12 h-12 md:w-14 md:h-14 rounded-xl bg-white/20 backdrop-blur" />
-                </div>
-                <p className="text-xs text-muted-foreground text-center mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  {item.title}
-                </p>
-              </motion.div>
-            ))}
-          </div>
-        </motion.div>
       </div>
     </section>
   );

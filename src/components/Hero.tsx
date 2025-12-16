@@ -86,6 +86,7 @@ export default function Hero() {
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imageFormat, setImageFormat] = useState<'png' | 'jpeg' | 'webp'>('png');
+  const [imageMode, setImageMode] = useState<'edit' | 'reference' | 'upscale'>('upscale');
   const [startFrameImage, setStartFrameImage] = useState<string>('');
   const [endFrameImage, setEndFrameImage] = useState<string>('');
   const [showFrameToFrame, setShowFrameToFrame] = useState(false);
@@ -202,10 +203,10 @@ export default function Hero() {
         return;
       }
 
-      if (file.size > 10 * 1024 * 1024) {
+      if (file.size > 1024 * 1024 * 1024) {
         toast({
           title: "File too large",
-          description: `${file.name} exceeds 10MB limit`,
+          description: `${file.name} exceeds 1GB limit`,
           variant: "destructive",
         });
         return;
@@ -258,14 +259,14 @@ export default function Hero() {
       return;
     }
 
-    // Check total size (50MB limit for larger folders)
+    // Check total size (1GB limit for larger folders)
     const totalSize = folderImages.reduce((acc, file) => acc + file.size, 0);
-    const maxSize = 50 * 1024 * 1024; // 50MB to support 120+ images
+    const maxSize = 1024 * 1024 * 1024; // 1GB to support large folders
     
     if (totalSize > maxSize) {
       toast({
         title: "Folder too large",
-        description: `Total size ${(totalSize / 1024 / 1024).toFixed(2)}MB exceeds 50MB limit`,
+        description: `Total size ${(totalSize / 1024 / 1024).toFixed(2)}MB exceeds 1GB limit`,
         variant: "destructive",
       });
       return;
@@ -407,10 +408,10 @@ export default function Hero() {
       return;
     }
 
-    if (file.size > 10 * 1024 * 1024) {
+    if (file.size > 1024 * 1024 * 1024) {
       toast({
         title: "File too large",
-        description: "Image exceeds 10MB limit",
+        description: "Image exceeds 1GB limit",
         variant: "destructive",
       });
       return;
@@ -540,6 +541,7 @@ export default function Hero() {
         imageUrl: uploadedImages[0] || undefined,
         imageUrls: uploadedImages.length > 0 ? uploadedImages : undefined,
         imageFormat,
+        imageMode: uploadedImages.length > 0 ? imageMode : undefined, // Pass image mode (edit or reference)
         // Veo 3.1 specific options
         referenceImages: options.type === 'video' && referenceImages.length > 0 
           ? referenceImages // Up to 3 reference images for video
@@ -664,7 +666,11 @@ export default function Hero() {
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 placeholder={uploadedImages.length > 0 && options.type === 'image' 
-                  ? "Describe the changes you want to make to the images..." 
+                  ? (imageMode === 'upscale'
+                      ? "Optional: Add specific details to enhance (or leave empty for perfect copy)..."
+                      : imageMode === 'edit' 
+                      ? "Describe the changes you want to make to the images..." 
+                      : "Describe what you want to create using this image as reference...")
                   : "A futuristic cityscape at sunset with flying cars..."}
                 className="min-h-[120px] resize-none bg-background/50 border-border/50 text-lg placeholder:text-muted-foreground/60 focus:ring-2 focus:ring-primary/50"
                 onKeyDown={(e) => {
@@ -736,6 +742,18 @@ export default function Hero() {
                   <option value="webp">WebP</option>
                 </select>
                 
+                {uploadedImages.length > 0 && options.type === 'image' && (
+                  <select
+                    value={imageMode}
+                    onChange={(e) => setImageMode(e.target.value as 'edit' | 'reference' | 'upscale')}
+                    className="h-9 px-3 rounded-md border border-input bg-background text-sm"
+                  >
+                    <option value="upscale">🔍 Upscale/Enhance (Perfect Copy)</option>
+                    <option value="reference">🎨 Use as Reference (Inspired)</option>
+                    <option value="edit">✨ Edit Image (Modify)</option>
+                  </select>
+                )}
+                
                 {uploadedImages.length > 0 && (
                   <span className="text-sm text-muted-foreground">
                     {uploadedImages.length} image(s) uploaded
@@ -752,7 +770,11 @@ export default function Hero() {
               
               {uploadedImages.length > 0 && options.type === 'image' && (
                 <span className="text-sm text-muted-foreground">
-                  ✨ Edit mode: Your images will be modified based on your prompt
+                  {imageMode === 'upscale' 
+                    ? '🔍 Upscale mode: AI will create a perfect high-resolution copy of your image'
+                    : imageMode === 'edit' 
+                    ? '✨ Edit mode: Your images will be modified based on your prompt'
+                    : '🎨 Reference mode: AI will create new images inspired by your reference'}
                 </span>
               )}
               
@@ -1148,27 +1170,6 @@ export default function Hero() {
           <AdvancedOptions options={options} onChange={setOptions} />
         </motion.div>
 
-        {/* Features */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.6, delay: 0.6 }}
-          className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-8"
-        >
-          {[
-            { title: 'Multi-Image Input', desc: 'Upload multiple reference images' },
-            { title: 'Format Options', desc: 'PNG, JPEG, or WebP conversion' },
-            { title: 'Image Editing', desc: 'Transform images with AI' },
-          ].map((feature, i) => (
-            <div
-              key={i}
-              className="glass rounded-xl p-4 border border-border/30 hover:border-primary/30 transition-colors"
-            >
-              <h3 className="font-semibold text-foreground mb-1">{feature.title}</h3>
-              <p className="text-sm text-muted-foreground">{feature.desc}</p>
-            </div>
-          ))}
-        </motion.div>
       </motion.div>
     </div>
   );

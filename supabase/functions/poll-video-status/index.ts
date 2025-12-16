@@ -18,15 +18,16 @@ serve(async (req) => {
 
     console.log("Polling video generation status...");
 
-    // First, check for stuck jobs without predictionId (timeout after 2 minutes)
-    const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+    // First, check for stuck jobs without predictionId (timeout after 10 minutes)
+    // Video generation can take 5-10 minutes for complex prompts and high-quality outputs
+    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
     const { data: stuckJobs } = await supabase
       .from('jobs')
       .select('*')
       .eq('type', 'video')
       .eq('status', 'running')
       .is('manifest->predictionId', null)
-      .lt('started_at', twoMinutesAgo);
+      .lt('started_at', tenMinutesAgo);
 
     if (stuckJobs && stuckJobs.length > 0) {
       console.log(`Found ${stuckJobs.length} stuck jobs without predictionId, marking as failed...`);
@@ -35,9 +36,9 @@ serve(async (req) => {
           .from('jobs')
           .update({
             status: 'failed',
-            error: 'Timeout - Video generation took too long',
+            error: 'Timeout - Video generation took too long (exceeded 10 minutes)',
             progress_stage: 'failed',
-            progress_message: 'Generation timed out',
+            progress_message: 'Generation timed out after 10 minutes',
             completed_at: new Date().toISOString()
           })
           .eq('id', job.id);

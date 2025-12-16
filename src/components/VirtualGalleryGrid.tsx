@@ -9,6 +9,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { motion } from 'framer-motion';
 import { JobType } from '@/types/job';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface VirtualGalleryGridProps {
   jobs: Job[];
@@ -27,6 +28,8 @@ export default function VirtualGalleryGrid({
   onUnityExport,
   thumbnailRefreshKey = 0
 }: VirtualGalleryGridProps) {
+  const { user } = useAuth();
+  
   // Helper to get compressed URL or fallback to original
   const getDisplayUrl = (job: Job, index: number = 0): string => {
     // Try to get compressed_outputs from the job data (loaded from DB)
@@ -68,6 +71,7 @@ export default function VirtualGalleryGrid({
                     key={`${job.id}-${thumbnailRefreshKey}`}
                     modelUrl={job.outputs[0]}
                     jobId={job.id}
+                    userId={user?.id}
                     isUnityModel={type === '3d'}
                   />
                 ) : type === 'video' ? (

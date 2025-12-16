@@ -523,8 +523,43 @@ class LovableAIService {
     console.log('LovableAI: Starting image generation/editing for', jobId);
 
     try {
-      // Check if this is an image-to-image edit operation
-      if (job.options.imageUrl) {
+      // Check if this is an upscale/enhance operation
+      if (job.options.imageUrl && job.options.imageMode === 'upscale') {
+        console.log('LovableAI: Using upscale/enhance mode for', jobId);
+        this.updateJobStage(jobId, 'running', 'Creating high-resolution copy...');
+        
+        // Use generate-image with the image as reference and a specific upscale prompt
+        const upscalePrompt = job.options.prompt || 'Create a perfect high-resolution copy of this image, preserving every detail, color, texture, and composition exactly as shown.';
+        
+        const { data, error } = await supabase.functions.invoke('generate-image', {
+          body: {
+            prompt: upscalePrompt,
+            referenceImageUrl: job.options.imageUrl,
+            width: job.options.width || 1920,
+            height: job.options.height || 1080,
+            numImages: job.options.numImages || 1,
+            upscaleQuality: job.options.upscaleQuality || 4,
+            jobId: jobId,
+          }
+        });
+
+        console.log('LovableAI: Upscale response:', { data, error });
+
+        if (error) {
+          console.error('LovableAI: Upscale error:', error);
+          throw new Error((error as Error).message || 'Failed to upscale image');
+        }
+
+        if (!data || !data.images || data.images.length === 0) {
+          console.error('LovableAI: No upscaled images in response:', data);
+          throw new Error('No upscaled images generated');
+        }
+
+        console.log('LovableAI: Image upscaled successfully for', jobId);
+        this.completeJob(jobId, data.images);
+        
+      } else if (job.options.imageUrl && job.options.imageMode === 'edit') {
+        // Image-to-image edit operation (explicit edit mode)
         console.log('LovableAI: Using image-to-image editing for', jobId);
         this.updateJobStage(jobId, 'running', 'Editing image with AI...');
         
@@ -577,6 +612,7 @@ class LovableAIService {
             upscaleQuality: job.options.upscaleQuality || 4,
             jobId: jobId,
             userId: job.userId,
+            referenceImageUrl: job.options.imageUrl, // Pass reference image if provided
           }
         });
 

@@ -49,6 +49,7 @@ export default function PromptEnhancer({ type, onPromptGenerated }: PromptEnhanc
   const [enhancedPrompt, setEnhancedPrompt] = useState('');
   const [isEnhancing, setIsEnhancing] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(false);
 
   const enhancePrompt = async () => {
     if (!idea.trim()) {
@@ -63,11 +64,25 @@ export default function PromptEnhancer({ type, onPromptGenerated }: PromptEnhanc
     setIsEnhancing(true);
 
     try {
+      // Check authentication first
+      const { data: { session }, error: authError } = await supabase.auth.getSession();
+      
+      if (authError || !session) {
+        throw new Error('Please sign in to use the AI Prompt Assistant');
+      }
+
+      console.log('Enhancing prompt with idea:', idea.trim(), 'type:', type);
+      
       const { data, error } = await supabase.functions.invoke('enhance-prompt', {
         body: { idea: idea.trim(), type }
       });
 
-      if (error) throw error;
+      console.log('Response from enhance-prompt:', { data, error });
+
+      if (error) {
+        console.error('Supabase function error:', error);
+        throw new Error(error.message || 'Failed to enhance prompt');
+      }
 
       if (data?.enhancedPrompt) {
         setEnhancedPrompt(data.enhancedPrompt);
@@ -75,14 +90,18 @@ export default function PromptEnhancer({ type, onPromptGenerated }: PromptEnhanc
           title: "Prompt Enhanced!",
           description: "AI has improved your prompt for better results"
         });
+      } else if (data?.error) {
+        throw new Error(data.error);
       } else {
-        throw new Error('No enhanced prompt received');
+        console.error('Unexpected response:', data);
+        throw new Error('No enhanced prompt received from AI');
       }
     } catch (error) {
       console.error('Error enhancing prompt:', error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to enhance prompt. Please try again.";
       toast({
         title: "Enhancement Failed",
-        description: error instanceof Error ? error.message : "Failed to enhance prompt",
+        description: errorMessage,
         variant: "destructive"
       });
     } finally {
@@ -141,17 +160,18 @@ export default function PromptEnhancer({ type, onPromptGenerated }: PromptEnhanc
           <Button
             onClick={enhancePrompt}
             disabled={isEnhancing || !idea.trim()}
-            className="flex-1"
+            className="flex-1 bg-gradient-to-r from-primary to-primary-glow hover:opacity-90"
+            size="lg"
           >
             {isEnhancing ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Enhancing...
+                Enhancing with AI...
               </>
             ) : (
               <>
                 <Wand2 className="w-4 h-4 mr-2" />
-                Enhance Prompt
+                ✨ Enhance with AI
               </>
             )}
           </Button>

@@ -80,21 +80,38 @@ function Model({ url, unityTransform, isUnityModel }: { url: string; unityTransf
   return <primitive object={gltf.scene} scale={1} />;
 }
 
-function PosterCapture({ onCapture }: { onCapture: (dataUrl: string) => void }) {
-  const { gl } = useThree();
+function PosterCapture({ onCapture, isUnityModel }: { onCapture: (dataUrl: string) => void; isUnityModel?: boolean }) {
+  const { gl, scene, camera } = useThree();
   
   useEffect(() => {
+    // Unity models need more time to render the grid and complex scene
+    const captureDelay = isUnityModel ? 1000 : 500;
+    
     const timer = setTimeout(() => {
       try {
-        const dataUrl = gl.domElement.toDataURL('image/png');
-        onCapture(dataUrl);
+        // Check if scene has children (model is loaded)
+        if (scene.children.length > 0) {
+          console.log(`Capturing poster for ${isUnityModel ? 'Unity' : 'regular'} model, scene children:`, scene.children.length);
+          
+          // Force a render before capturing
+          gl.render(scene, camera);
+          
+          const dataUrl = gl.domElement.toDataURL('image/png');
+          if (dataUrl && dataUrl.length > 100) {
+            onCapture(dataUrl);
+          } else {
+            console.warn('Captured poster seems empty or invalid');
+          }
+        } else {
+          console.warn('Scene not ready for poster capture, children:', scene.children.length);
+        }
       } catch (error) {
         console.error('Failed to capture poster:', error);
       }
-    }, 100);
+    }, captureDelay);
     
     return () => clearTimeout(timer);
-  }, [gl, onCapture]);
+  }, [gl, scene, camera, onCapture, isUnityModel]);
   
   return null;
 }
@@ -114,6 +131,9 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId, unityTransfor
 
   const retryCount = useRef(0);
   const maxRetries = 2;
+  
+  // Use cached poster or newly captured poster
+  const displayPosterUrl = posterUrl || cachedPosterUrl;
 
   // Intersection observer to only render when visible
   useEffect(() => {
@@ -143,9 +163,11 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId, unityTransfor
       try {
         const cached = await posterCache.get(cacheKey);
         if (cached) {
-          console.log('Loaded cached poster from IndexedDB for', jobId || normalizedUrl);
+          console.log(`✅ Loaded cached poster from IndexedDB for ${isUnityModel ? 'Unity' : 'CAD'} model:`, jobId || normalizedUrl);
           setCachedPosterUrl(cached);
           setIsLoading(false);
+        } else {
+          console.log(`❌ No cached poster found for ${isUnityModel ? 'Unity' : 'CAD'} model:`, jobId || normalizedUrl);
         }
       } catch (error) {
         console.error('Failed to load cached poster:', error);
@@ -153,7 +175,7 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId, unityTransfor
     };
 
     loadCachedPoster();
-  }, [cacheKey, jobId, normalizedUrl]);
+  }, [cacheKey, jobId, normalizedUrl, isUnityModel]);
 
   const handleModelError = () => {
     retryCount.current += 1;
@@ -174,7 +196,8 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId, unityTransfor
   };
 
   const handlePosterCapture = async (dataUrl: string) => {
-    console.log('Poster captured for', jobId || normalizedUrl);
+    console.log(`🎨 Poster captured for ${isUnityModel ? 'Unity' : 'CAD'} model:`, jobId || normalizedUrl);
+    console.log('Poster data URL length:', dataUrl.length);
     setPosterUrl(dataUrl);
     setIsLoading(false);
     
@@ -183,6 +206,7 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId, unityTransfor
       try {
         await posterCache.set(cacheKey, dataUrl, normalizedUrl);
         setCachedPosterUrl(dataUrl);
+        console.log('✅ Poster saved to cache');
         
         // Trigger cleanup to maintain reasonable cache size
         posterCache.cleanup(50).catch(err => 
@@ -193,6 +217,20 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId, unityTransfor
       }
     }
   };
+
+  // Fallback: if poster capture takes too long, stop showing loading state
+  useEffect(() => {
+    if (isLoading && isInView && activeUrl && !displayPosterUrl) {
+      // Give Unity models more time (they need 1s for capture + loading time)
+      const timeoutDuration = isUnityModel ? 5000 : 3000;
+      const fallbackTimer = setTimeout(() => {
+        console.log('Poster capture timeout, showing live canvas');
+        setIsLoading(false);
+      }, timeoutDuration);
+      
+      return () => clearTimeout(fallbackTimer);
+    }
+  }, [isLoading, isInView, activeUrl, displayPosterUrl, isUnityModel]);
 
   // Try to construct Supabase storage URL for models - with pre-flight validation
   useEffect(() => {
@@ -302,6 +340,19 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId, unityTransfor
     };
   }, [posterUrl]);
 
+  // If we have a cached poster, show it immediately even if URL is still validating
+  if (cachedPosterUrl) {
+    return (
+      <div className="w-full h-full bg-card relative" ref={canvasRef}>
+        <img 
+          src={cachedPosterUrl} 
+          alt="Model preview" 
+          className="w-full h-full object-cover"
+        />
+      </div>
+    );
+  }
+
   // If no valid URL, error, or still validating, show fallback
   if (!isUrlValidated || !activeUrl || loadError) {
     return (
@@ -322,110 +373,101 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId, unityTransfor
 
   return (
     <div className="w-full h-full bg-card relative" ref={canvasRef}>
-      {/* Show cached poster - no live Canvas needed for thumbnails */}
-      {cachedPosterUrl && (
-        <img 
-          src={cachedPosterUrl} 
-          alt="Model preview" 
-          className="w-full h-full object-cover"
-        />
+      {/* Show loading overlay only when actively loading */}
+      {isLoading && isInView && !displayPosterUrl && (
+        <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
+          <Loader2 className="w-8 h-8 text-primary animate-spin" />
+        </div>
       )}
       
-      {/* If no cached poster, try to generate one with a SINGLE render */}
-      {!cachedPosterUrl && !posterUrl && !loadError && isInView && (
-        <>
-          {isLoading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
-              <Loader2 className="w-8 h-8 text-primary animate-spin" />
-            </div>
-          )}
-          <Canvas
-        key={canvasKey}
-        camera={{ position: [0, 0, 3], fov: 50 }}
-        className="w-full h-full"
-        dpr={[1, 1]}
-        frameloop="demand"
-        gl={{ 
-          antialias: false, // Disable for better performance
-          alpha: true, 
-          powerPreference: 'low-power', 
-          preserveDrawingBuffer: true,
-          failIfMajorPerformanceCaveat: true // Prevent slow contexts
-        }}
-        onCreated={({ gl }) => {
-          // Use theme background color
-          const bgColor = getComputedStyle(document.documentElement)
-            .getPropertyValue('--background')
-            .trim()
-            .split(' ')
-            .map(v => parseFloat(v));
-          
-          const hslColor = `hsl(${bgColor[0]}, ${bgColor[1]}%, ${bgColor[2]}%)`;
-          gl.setClearColor(hslColor);
-          
-          const elem = gl.domElement as HTMLCanvasElement;
-          const onLost = (e: any) => { 
-            e.preventDefault?.(); 
-            if (posterUrl) {
-              setIsLoading(false);
-            }
-            setCanvasKey((k: number) => k + 1); 
-          };
-          const onRestored = () => setCanvasKey((k: number) => k + 1);
-          elem.addEventListener('webglcontextlost', onLost as any, { passive: false } as any);
-          elem.addEventListener('webglcontextrestored', onRestored as any);
-        }}
-          >
-            <Suspense fallback={null}>
-              <ModelErrorBoundary onError={handleModelError}>
-                {isUnityModel ? (
-                  <>
-                    <ambientLight intensity={0.4} />
-                    <directionalLight position={[10, 10, 5]} intensity={1} />
-                    <Model url={activeUrl} unityTransform={unityTransform} isUnityModel={isUnityModel} />
-                    <Grid
-                      args={[20, 20]}
-                      cellSize={1}
-                      cellThickness={0.5}
-                      cellColor="#555555"
-                      sectionSize={5}
-                      sectionThickness={1}
-                      sectionColor="#777777"
-                      fadeDistance={30}
-                      fadeStrength={1}
-                      followCamera={false}
-                      infiniteGrid={false}
-                      position={[0, -0.01, 0]}
-                    />
-                    <Environment preset="studio" />
-                  </>
-                ) : (
-                  <>
-                    <Environment preset="studio" />
-                    <ambientLight intensity={0.3} />
-                    <directionalLight position={[5, 5, 5]} intensity={0.5} />
-                    <PresentationControls
-                      speed={1.5}
-                      global
-                      zoom={0.8}
-                      polar={[-Math.PI / 4, Math.PI / 4]}
-                      enabled={false}
-                    >
-                      <Model url={activeUrl} />
-                    </PresentationControls>
-                  </>
-                )}
-                <PosterCapture onCapture={handlePosterCapture} />
-              </ModelErrorBoundary>
-            </Suspense>
-          </Canvas>
-        </>
+      {/* Render Canvas when in view and we have a valid URL */}
+      {!loadError && isInView && activeUrl && !displayPosterUrl && (
+        <Canvas
+          key={canvasKey}
+          camera={{ position: [0, 0, 3], fov: 50 }}
+          className="w-full h-full"
+          dpr={[1, 1]}
+          frameloop="always"
+          gl={{ 
+            antialias: false,
+            alpha: true, 
+            powerPreference: 'low-power', 
+            preserveDrawingBuffer: true,
+            failIfMajorPerformanceCaveat: false
+          }}
+          onCreated={({ gl, invalidate }) => {
+            const bgColor = getComputedStyle(document.documentElement)
+              .getPropertyValue('--background')
+              .trim()
+              .split(' ')
+              .map(v => parseFloat(v));
+            
+            const hslColor = `hsl(${bgColor[0]}, ${bgColor[1]}%, ${bgColor[2]}%)`;
+            gl.setClearColor(hslColor);
+            invalidate();
+            
+            const elem = gl.domElement as HTMLCanvasElement;
+            const onLost = (e: any) => { 
+              e.preventDefault?.(); 
+              if (posterUrl) {
+                setIsLoading(false);
+              }
+              setCanvasKey((k: number) => k + 1); 
+            };
+            const onRestored = () => setCanvasKey((k: number) => k + 1);
+            elem.addEventListener('webglcontextlost', onLost as any, { passive: false } as any);
+            elem.addEventListener('webglcontextrestored', onRestored as any);
+          }}
+        >
+          <Suspense fallback={null}>
+            <ModelErrorBoundary onError={handleModelError}>
+              {isUnityModel ? (
+                <>
+                  <ambientLight intensity={0.4} />
+                  <directionalLight position={[10, 10, 5]} intensity={1} />
+                  <Model url={activeUrl} unityTransform={unityTransform} isUnityModel={isUnityModel} />
+                  <Grid
+                    args={[20, 20]}
+                    cellSize={1}
+                    cellThickness={0.5}
+                    cellColor="#555555"
+                    sectionSize={5}
+                    sectionThickness={1}
+                    sectionColor="#777777"
+                    fadeDistance={30}
+                    fadeStrength={1}
+                    followCamera={false}
+                    infiniteGrid={false}
+                    position={[0, -0.01, 0]}
+                  />
+                  <Environment preset="studio" />
+                </>
+              ) : (
+                <>
+                  <Environment preset="studio" />
+                  <ambientLight intensity={0.3} />
+                  <directionalLight position={[5, 5, 5]} intensity={0.5} />
+                  <PresentationControls
+                    speed={1.5}
+                    global
+                    zoom={0.8}
+                    polar={[-Math.PI / 4, Math.PI / 4]}
+                    enabled={false}
+                  >
+                    <Model url={activeUrl} />
+                  </PresentationControls>
+                </>
+              )}
+              {!displayPosterUrl && <PosterCapture onCapture={handlePosterCapture} isUnityModel={isUnityModel} />}
+            </ModelErrorBoundary>
+          </Suspense>
+        </Canvas>
       )}
       
-      {/* Show static poster if we have it */}
-      {posterUrl && !cachedPosterUrl && (
+      {/* Show static poster if we have it (either cached or newly captured) */}
+      {displayPosterUrl && (
         <img 
-          src={posterUrl} 
+          src={displayPosterUrl} 
           alt="Model preview" 
           className="w-full h-full object-cover"
         />
