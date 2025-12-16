@@ -81,20 +81,26 @@ function Model({ url, unityTransform, isUnityModel }: { url: string; unityTransf
 }
 
 function PosterCapture({ onCapture }: { onCapture: (dataUrl: string) => void }) {
-  const { gl } = useThree();
+  const { gl, scene } = useThree();
   
   useEffect(() => {
+    // Wait longer to ensure model is fully loaded and rendered
     const timer = setTimeout(() => {
       try {
-        const dataUrl = gl.domElement.toDataURL('image/png');
-        onCapture(dataUrl);
+        // Check if scene has children (model is loaded)
+        if (scene.children.length > 0) {
+          const dataUrl = gl.domElement.toDataURL('image/png');
+          onCapture(dataUrl);
+        } else {
+          console.warn('Scene not ready for poster capture');
+        }
       } catch (error) {
         console.error('Failed to capture poster:', error);
       }
-    }, 100);
+    }, 500); // Increased delay to ensure model is rendered
     
     return () => clearTimeout(timer);
-  }, [gl, onCapture]);
+  }, [gl, scene, onCapture]);
   
   return null;
 }
@@ -193,6 +199,18 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId, unityTransfor
       }
     }
   };
+
+  // Fallback: if poster capture takes too long, stop showing loading state
+  useEffect(() => {
+    if (isLoading && isInView && activeUrl) {
+      const fallbackTimer = setTimeout(() => {
+        console.log('Poster capture timeout, showing live canvas');
+        setIsLoading(false);
+      }, 3000); // 3 second timeout
+      
+      return () => clearTimeout(fallbackTimer);
+    }
+  }, [isLoading, isInView, activeUrl]);
 
   // Try to construct Supabase storage URL for models - with pre-flight validation
   useEffect(() => {
@@ -335,95 +353,96 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId, unityTransfor
 
   return (
     <div className="w-full h-full bg-card relative" ref={canvasRef}>
-      {/* If no poster yet, try to generate one with a SINGLE render */}
-      {!posterUrl && !loadError && isInView && (
-        <>
-          {isLoading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
-              <Loader2 className="w-8 h-8 text-primary animate-spin" />
-            </div>
-          )}
-          <Canvas
-        key={canvasKey}
-        camera={{ position: [0, 0, 3], fov: 50 }}
-        className="w-full h-full"
-        dpr={[1, 1]}
-        frameloop="demand"
-        gl={{ 
-          antialias: false, // Disable for better performance
-          alpha: true, 
-          powerPreference: 'low-power', 
-          preserveDrawingBuffer: true,
-          failIfMajorPerformanceCaveat: true // Prevent slow contexts
-        }}
-        onCreated={({ gl }) => {
-          // Use theme background color
-          const bgColor = getComputedStyle(document.documentElement)
-            .getPropertyValue('--background')
-            .trim()
-            .split(' ')
-            .map(v => parseFloat(v));
-          
-          const hslColor = `hsl(${bgColor[0]}, ${bgColor[1]}%, ${bgColor[2]}%)`;
-          gl.setClearColor(hslColor);
-          
-          const elem = gl.domElement as HTMLCanvasElement;
-          const onLost = (e: any) => { 
-            e.preventDefault?.(); 
-            if (posterUrl) {
-              setIsLoading(false);
-            }
-            setCanvasKey((k: number) => k + 1); 
-          };
-          const onRestored = () => setCanvasKey((k: number) => k + 1);
-          elem.addEventListener('webglcontextlost', onLost as any, { passive: false } as any);
-          elem.addEventListener('webglcontextrestored', onRestored as any);
-        }}
-          >
-            <Suspense fallback={null}>
-              <ModelErrorBoundary onError={handleModelError}>
-                {isUnityModel ? (
-                  <>
-                    <ambientLight intensity={0.4} />
-                    <directionalLight position={[10, 10, 5]} intensity={1} />
-                    <Model url={activeUrl} unityTransform={unityTransform} isUnityModel={isUnityModel} />
-                    <Grid
-                      args={[20, 20]}
-                      cellSize={1}
-                      cellThickness={0.5}
-                      cellColor="#555555"
-                      sectionSize={5}
-                      sectionThickness={1}
-                      sectionColor="#777777"
-                      fadeDistance={30}
-                      fadeStrength={1}
-                      followCamera={false}
-                      infiniteGrid={false}
-                      position={[0, -0.01, 0]}
-                    />
-                    <Environment preset="studio" />
-                  </>
-                ) : (
-                  <>
-                    <Environment preset="studio" />
-                    <ambientLight intensity={0.3} />
-                    <directionalLight position={[5, 5, 5]} intensity={0.5} />
-                    <PresentationControls
-                      speed={1.5}
-                      global
-                      zoom={0.8}
-                      polar={[-Math.PI / 4, Math.PI / 4]}
-                      enabled={false}
-                    >
-                      <Model url={activeUrl} />
-                    </PresentationControls>
-                  </>
-                )}
-                <PosterCapture onCapture={handlePosterCapture} />
-              </ModelErrorBoundary>
-            </Suspense>
-          </Canvas>
-        </>
+      {/* Show loading overlay only when actively loading */}
+      {isLoading && isInView && !posterUrl && !cachedPosterUrl && (
+        <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
+          <Loader2 className="w-8 h-8 text-primary animate-spin" />
+        </div>
+      )}
+      
+      {/* Render Canvas when in view and we have a valid URL */}
+      {!loadError && isInView && activeUrl && (
+        <Canvas
+          key={canvasKey}
+          camera={{ position: [0, 0, 3], fov: 50 }}
+          className="w-full h-full"
+          style={{ display: posterUrl ? 'none' : 'block' }}
+          dpr={[1, 1]}
+          frameloop="always"
+          gl={{ 
+            antialias: false,
+            alpha: true, 
+            powerPreference: 'low-power', 
+            preserveDrawingBuffer: true,
+            failIfMajorPerformanceCaveat: false
+          }}
+          onCreated={({ gl, invalidate }) => {
+            const bgColor = getComputedStyle(document.documentElement)
+              .getPropertyValue('--background')
+              .trim()
+              .split(' ')
+              .map(v => parseFloat(v));
+            
+            const hslColor = `hsl(${bgColor[0]}, ${bgColor[1]}%, ${bgColor[2]}%)`;
+            gl.setClearColor(hslColor);
+            invalidate();
+            
+            const elem = gl.domElement as HTMLCanvasElement;
+            const onLost = (e: any) => { 
+              e.preventDefault?.(); 
+              if (posterUrl) {
+                setIsLoading(false);
+              }
+              setCanvasKey((k: number) => k + 1); 
+            };
+            const onRestored = () => setCanvasKey((k: number) => k + 1);
+            elem.addEventListener('webglcontextlost', onLost as any, { passive: false } as any);
+            elem.addEventListener('webglcontextrestored', onRestored as any);
+          }}
+        >
+          <Suspense fallback={null}>
+            <ModelErrorBoundary onError={handleModelError}>
+              {isUnityModel ? (
+                <>
+                  <ambientLight intensity={0.4} />
+                  <directionalLight position={[10, 10, 5]} intensity={1} />
+                  <Model url={activeUrl} unityTransform={unityTransform} isUnityModel={isUnityModel} />
+                  <Grid
+                    args={[20, 20]}
+                    cellSize={1}
+                    cellThickness={0.5}
+                    cellColor="#555555"
+                    sectionSize={5}
+                    sectionThickness={1}
+                    sectionColor="#777777"
+                    fadeDistance={30}
+                    fadeStrength={1}
+                    followCamera={false}
+                    infiniteGrid={false}
+                    position={[0, -0.01, 0]}
+                  />
+                  <Environment preset="studio" />
+                </>
+              ) : (
+                <>
+                  <Environment preset="studio" />
+                  <ambientLight intensity={0.3} />
+                  <directionalLight position={[5, 5, 5]} intensity={0.5} />
+                  <PresentationControls
+                    speed={1.5}
+                    global
+                    zoom={0.8}
+                    polar={[-Math.PI / 4, Math.PI / 4]}
+                    enabled={false}
+                  >
+                    <Model url={activeUrl} />
+                  </PresentationControls>
+                </>
+              )}
+              {!posterUrl && <PosterCapture onCapture={handlePosterCapture} />}
+            </ModelErrorBoundary>
+          </Suspense>
+        </Canvas>
       )}
       
       {/* Show static poster if we have it */}
