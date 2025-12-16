@@ -86,6 +86,7 @@ export default function Hero() {
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imageFormat, setImageFormat] = useState<'png' | 'jpeg' | 'webp'>('png');
+  const [imageMode, setImageMode] = useState<'edit' | 'reference'>('reference');
   const [startFrameImage, setStartFrameImage] = useState<string>('');
   const [endFrameImage, setEndFrameImage] = useState<string>('');
   const [showFrameToFrame, setShowFrameToFrame] = useState(false);
@@ -540,6 +541,7 @@ export default function Hero() {
         imageUrl: uploadedImages[0] || undefined,
         imageUrls: uploadedImages.length > 0 ? uploadedImages : undefined,
         imageFormat,
+        imageMode: uploadedImages.length > 0 ? imageMode : undefined, // Pass image mode (edit or reference)
         // Veo 3.1 specific options
         referenceImages: options.type === 'video' && referenceImages.length > 0 
           ? referenceImages // Up to 3 reference images for video
@@ -664,7 +666,9 @@ export default function Hero() {
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 placeholder={uploadedImages.length > 0 && options.type === 'image' 
-                  ? "Describe the changes you want to make to the images..." 
+                  ? (imageMode === 'edit' 
+                      ? "Describe the changes you want to make to the images..." 
+                      : "Describe what you want to create using this image as reference...")
                   : "A futuristic cityscape at sunset with flying cars..."}
                 className="min-h-[120px] resize-none bg-background/50 border-border/50 text-lg placeholder:text-muted-foreground/60 focus:ring-2 focus:ring-primary/50"
                 onKeyDown={(e) => {
@@ -736,6 +740,17 @@ export default function Hero() {
                   <option value="webp">WebP</option>
                 </select>
                 
+                {uploadedImages.length > 0 && options.type === 'image' && (
+                  <select
+                    value={imageMode}
+                    onChange={(e) => setImageMode(e.target.value as 'edit' | 'reference')}
+                    className="h-9 px-3 rounded-md border border-input bg-background text-sm"
+                  >
+                    <option value="reference">Use as Reference</option>
+                    <option value="edit">Edit Image</option>
+                  </select>
+                )}
+                
                 {uploadedImages.length > 0 && (
                   <span className="text-sm text-muted-foreground">
                     {uploadedImages.length} image(s) uploaded
@@ -752,7 +767,9 @@ export default function Hero() {
               
               {uploadedImages.length > 0 && options.type === 'image' && (
                 <span className="text-sm text-muted-foreground">
-                  ✨ Edit mode: Your images will be modified based on your prompt
+                  {imageMode === 'edit' 
+                    ? '✨ Edit mode: Your images will be modified based on your prompt'
+                    : '🎨 Reference mode: AI will create new images inspired by your reference'}
                 </span>
               )}
               

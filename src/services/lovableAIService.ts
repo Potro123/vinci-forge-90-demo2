@@ -523,8 +523,8 @@ class LovableAIService {
     console.log('LovableAI: Starting image generation/editing for', jobId);
 
     try {
-      // Check if this is an image-to-image edit operation
-      if (job.options.imageUrl) {
+      // Check if this is an image-to-image edit operation (explicit edit mode)
+      if (job.options.imageUrl && job.options.imageMode === 'edit') {
         console.log('LovableAI: Using image-to-image editing for', jobId);
         this.updateJobStage(jobId, 'running', 'Editing image with AI...');
         
@@ -577,6 +577,7 @@ class LovableAIService {
             upscaleQuality: job.options.upscaleQuality || 4,
             jobId: jobId,
             userId: job.userId,
+            referenceImageUrl: job.options.imageUrl, // Pass reference image if provided
           }
         });
 

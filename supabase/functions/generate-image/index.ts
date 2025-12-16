@@ -43,6 +43,7 @@ const generateImageSchema = z.object({
   numImages: z.number().min(1).max(8).optional().default(1),
   upscaleQuality: z.number().min(2).max(8).optional().default(4),
   jobId: z.string().uuid().optional(),
+  referenceImageUrl: z.string().url().optional(), // Single reference image for inspiration
 });
 
 serve(async (req) => {
@@ -93,7 +94,7 @@ serve(async (req) => {
       );
     }
 
-    const { prompt, width, height, numImages, upscaleQuality, jobId } = validationResult.data;
+    const { prompt, width, height, numImages, upscaleQuality, jobId, referenceImageUrl } = validationResult.data;
     const userId = user.id; // Derive from authenticated user
     
     // Initialize Supabase client with service role for database operations
@@ -140,6 +141,14 @@ serve(async (req) => {
         try {
           console.log(`Generating image ${imgIndex + 1}/${numImages} with ${model}`);
           
+          // Build message content - include reference image if provided
+          const messageContent = referenceImageUrl 
+            ? [
+                { type: 'text', text: imagePrompt },
+                { type: 'image_url', image_url: { url: referenceImageUrl } }
+              ]
+            : imagePrompt;
+
           response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
             method: 'POST',
             headers: {
@@ -151,7 +160,7 @@ serve(async (req) => {
               messages: [
                 {
                   role: 'user',
-                  content: imagePrompt
+                  content: messageContent
                 }
               ],
               modalities: ['image', 'text']
