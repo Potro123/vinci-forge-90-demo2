@@ -537,9 +537,9 @@ class LovableAIService {
             referenceImageUrl: job.options.imageUrl,
             width: job.options.width || 1920,
             height: job.options.height || 1080,
-            numOutputs: job.options.numOutputs || 1,
-            guidanceScale: job.options.cfgScale || 7.5,
-            numInferenceSteps: job.options.steps || 20,
+            numImages: job.options.numImages || 1,
+            upscaleQuality: job.options.upscaleQuality || 4,
+            jobId: jobId,
           }
         });
 
@@ -550,13 +550,13 @@ class LovableAIService {
           throw new Error((error as Error).message || 'Failed to upscale image');
         }
 
-        if (!data || !data.imageUrls || data.imageUrls.length === 0) {
+        if (!data || !data.images || data.images.length === 0) {
           console.error('LovableAI: No upscaled images in response:', data);
           throw new Error('No upscaled images generated');
         }
 
         console.log('LovableAI: Image upscaled successfully for', jobId);
-        this.completeJob(jobId, data.imageUrls);
+        this.completeJob(jobId, data.images);
         
       } else if (job.options.imageUrl && job.options.imageMode === 'edit') {
         // Image-to-image edit operation (explicit edit mode)
