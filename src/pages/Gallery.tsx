@@ -1107,6 +1107,7 @@ export default function Gallery() {
                                 )
                               ) : (job.options.type === '3d' || job.options.type === 'cad') ? (
                                 <ThreeDThumbnail 
+                                  key={`${job.id}-${thumbnailRefreshKey}`}
                                   modelUrl={job.outputs[0]} 
                                   jobId={job.id} 
                                   userId={job.userId}
